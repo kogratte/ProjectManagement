@@ -34,16 +34,23 @@ namespace SolutionManagement
                                Console.WriteLine($"{solutions.Count} csproj founds");
                            }
 
+                           AnalyseNetFwkVersionFor(solutions);
+                           AnalyseNugetUsagesFor(solutions);
+
                            if (opts.AnalyseNetVersion)
                            {
-                               AnalyseNetFwkVersionFor(solutions);
                                PrintFwkVersion(solutions, opts);
                            }
 
                            if (opts.AnalyseNugetVersion)
                            {
-                               AnalyseNugetUsagesFor(solutions);
                                PrintNugetUsageFor(solutions, opts);
+                           }
+
+                           if (opts.ConsolidateDependencies)
+                           {
+
+                               PrintNugetConsolidationInformations(solutions, opts);
                            }
                        }
                        catch (Exception e)
@@ -106,6 +113,39 @@ namespace SolutionManagement
 
             if (opts.Verbose)
                 ConsoleTableBuilder.From(table).ExportAndWriteLine();
+        }
+
+        private static void PrintNugetConsolidationInformations(List<Solution> solutions, CommandLineOption opts)
+        {
+            IEnumerable<Nuget> nugets = solutions.SelectMany(s => s.Nugets);
+            if (!string.IsNullOrEmpty(opts.FilterDependency))
+            {
+                nugets = nugets.Where(n => n.Name.Equals(opts.FilterDependency));
+            }
+
+            nugets.Select(n => n.Name).Distinct().ToList().ForEach(n =>
+            {
+                DataTable table = new DataTable();
+
+                table.Columns.Add("Nuget Name", typeof(string));
+                table.Columns.Add("Target Framework", typeof(string));
+                table.Columns.Add("Used versions", typeof(string));
+
+                nugets.Select(_n => _n.TargetFramework).Distinct().ToList().ForEach(tv =>
+                {
+                    var usedNugetVersions = nugets.Where(_n => _n.Name == n && _n.TargetFramework == tv).Select(_n => _n.Version).Distinct().ToList();
+                    if (usedNugetVersions.Any())
+                    {
+                        table.Rows.Add(n, tv, string.Join(", ", usedNugetVersions));
+                    }
+                });
+
+                if (opts.Verbose)
+                {
+                    ConsoleTableBuilder.From(table).ExportAndWriteLine();
+                    Console.WriteLine(Environment.NewLine);
+                }
+            });
         }
 
 
